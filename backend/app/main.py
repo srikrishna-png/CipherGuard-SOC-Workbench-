@@ -52,6 +52,35 @@ def analyze_input(tool_id: str, request: ToolExecutionRequest):
     )
     return result
 
+from pydantic import BaseModel
+from typing import List, Optional
+from app.core.assistant import ask_gemini_assistant
+
+class ChatMessageItem(BaseModel):
+    role: str
+    content: str
+
+class ChatAssistantRequest(BaseModel):
+    messages: List[ChatMessageItem]
+    current_tool_id: Optional[str] = None
+    api_key: Optional[str] = None
+
+class ChatAssistantResponse(BaseModel):
+    reply: str
+
+@app.post("/api/v1/assistant/chat", response_model=ChatAssistantResponse, tags=["AI Copilot"])
+def chat_with_assistant(request: ChatAssistantRequest):
+    try:
+        msgs = [{"role": m.role, "content": m.content} for m in request.messages]
+        reply_text = ask_gemini_assistant(
+            messages=msgs,
+            api_key=request.api_key,
+            current_tool_id=request.current_tool_id
+        )
+        return ChatAssistantResponse(reply=reply_text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Assistant error: {str(e)}")
+
 @app.get("/api/v1/audit/entries", response_model=List[AuditLedgerEntry], tags=["Cryptographic Audit Ledger"])
 def list_audit_entries(limit: int = 50):
     return get_ledger_entries(limit=limit)
@@ -63,3 +92,4 @@ def verify_audit_chain():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+

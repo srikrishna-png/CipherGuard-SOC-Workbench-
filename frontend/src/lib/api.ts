@@ -54,3 +54,34 @@ export async function checkBackendHealth() {
     return false;
   }
 }
+
+export interface ChatMessagePayload {
+  role: string;
+  content: string;
+}
+
+export async function askAssistantChat(
+  messages: ChatMessagePayload[], 
+  currentToolId?: string,
+  apiKey?: string
+): Promise<{ reply: string }> {
+  const res = await fetch(`${API_BASE}/assistant/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messages,
+      current_tool_id: currentToolId,
+      api_key: apiKey || undefined
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to contact AI Assistant' }));
+    throw new Error(err.detail || `Server error (${res.status})`);
+  }
+
+  return res.json();
+}
+

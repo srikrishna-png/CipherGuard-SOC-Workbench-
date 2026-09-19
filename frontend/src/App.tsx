@@ -8,18 +8,44 @@ import { MobileSidebar } from './components/layout/MobileSidebar';
 import { CommandPalette } from './components/layout/CommandPalette';
 import { Workbench } from './components/workbench/Workbench';
 import { AuditLedgerModal } from './components/audit/AuditLedgerModal';
+import { Dashboard } from './components/dashboard/Dashboard';
+import { LoginPage, UserProfile } from './components/auth/LoginPage';
+import { AIAssistantModal } from './components/ai/AIAssistantModal';
+
+const DEFAULT_USER: UserProfile = {
+  username: 'srikrishna-png',
+  role: 'Lead SOC Architect & Security Director',
+  clearance: 'OMNI-TOP-SECRET // LEVEL 5',
+  avatarInitials: 'SK',
+  badgeColor: 'border-emerald-500 text-emerald-400 bg-emerald-950/60',
+  loginTime: '09:00:00 AM'
+};
 
 export function App() {
-  // Default tool is Deep URL & Phishing Link Analyzer (Suite 1, Tool 1)
+  // Navigation views: dashboard | workbench | login
+  const [currentView, setCurrentView] = useState<'dashboard' | 'workbench' | 'login'>('dashboard');
+
+  // Currently active tool in workbench
   const [selectedTool, setSelectedTool] = useState<ToolMetadata>(SUITES_CATALOG[0].tools[0]);
-  
-  // Modal & Drawer states
+
+  // User Profile Session
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('CIPHERGUARD_USER_PROFILE');
+      return saved ? JSON.parse(saved) : DEFAULT_USER;
+    } catch {
+      return DEFAULT_USER;
+    }
+  });
+
+  // Modals & Drawers
   const [isAuditLedgerOpen, setIsAuditLedgerOpen] = useState(false);
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [activeMobileView, setActiveMobileView] = useState<'workbench' | 'suites' | 'audit'>('workbench');
 
-  // Handle global keyboard shortcuts (Ctrl+K / Cmd+K)
+  // Keyboard shortcut (Ctrl+K / Cmd+K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -33,6 +59,7 @@ export function App() {
 
   const handleSelectTool = (tool: ToolMetadata) => {
     setSelectedTool(tool);
+    setCurrentView('workbench');
     setActiveMobileView('workbench');
     setIsMobileDrawerOpen(false);
   };
@@ -42,41 +69,86 @@ export function App() {
     handleSelectTool(tool);
   };
 
+  const handleLoginSuccess = (profile: UserProfile) => {
+    setCurrentUser(profile);
+    try {
+      localStorage.setItem('CIPHERGUARD_USER_PROFILE', JSON.stringify(profile));
+    } catch {}
+    setCurrentView('dashboard');
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('CIPHERGUARD_USER_PROFILE');
+    } catch {}
+  };
+
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col antialiased selection:bg-emerald-500/30">
       {/* Top Navbar */}
       <Navbar
+        currentView={currentView}
+        onChangeView={setCurrentView}
         activeToolName={selectedTool.name}
+        currentUser={currentUser}
+        onLogout={handleLogout}
         onOpenAuditLedger={() => setIsAuditLedgerOpen(true)}
+        onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
         onOpenSearch={() => setIsSearchOpen(true)}
         onToggleMobileMenu={() => setIsMobileDrawerOpen(true)}
       />
 
-      {/* Main Content Layout */}
-      <div className="flex flex-1">
-        {/* Desktop Left Sidebar (8 Suites / 80 Tools) */}
-        <Sidebar
-          selectedToolId={selectedTool.id}
-          onSelectTool={handleSelectTool}
-        />
-
-        {/* Central Dual-Pane Workbench */}
-        <main className="flex-1 flex flex-col pb-24 lg:pb-0">
-          <Workbench
-            tool={selectedTool}
-            onSelectToolById={handleSelectToolById}
+      {/* Main Content Area based on current view */}
+      {currentView === 'dashboard' && (
+        <main className="flex-1 flex flex-col">
+          <Dashboard
+            onSelectTool={handleSelectTool}
+            onOpenWorkbench={() => setCurrentView('workbench')}
+            onOpenLedger={() => setIsAuditLedgerOpen(true)}
+            onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
+            onOpenSearch={() => setIsSearchOpen(true)}
           />
         </main>
-      </div>
+      )}
 
-      {/* Mobile Floating Glassmorphic Bottom Dock */}
+      {currentView === 'workbench' && (
+        <div className="flex flex-1">
+          {/* Desktop Left Sidebar (8 Suites / 80 Tools) */}
+          <Sidebar
+            selectedToolId={selectedTool.id}
+            onSelectTool={handleSelectTool}
+          />
+
+          {/* Central Dual-Pane Workbench */}
+          <main className="flex-1 flex flex-col pb-24 lg:pb-0">
+            <Workbench
+              tool={selectedTool}
+              onSelectToolById={handleSelectToolById}
+            />
+          </main>
+        </div>
+      )}
+
+      {currentView === 'login' && (
+        <main className="flex-1 flex flex-col">
+          <LoginPage
+            onLoginSuccess={handleLoginSuccess}
+            onCancel={() => setCurrentView('dashboard')}
+          />
+        </main>
+      )}
+
+      {/* Mobile Floating Bottom Nav */}
       <BottomNav
         activeView={activeMobileView}
         onOpenWorkbench={() => {
+          setCurrentView('workbench');
           setActiveMobileView('workbench');
           setIsMobileDrawerOpen(false);
         }}
         onOpenMobileDrawer={() => {
+          setCurrentView('workbench');
           setActiveMobileView('suites');
           setIsMobileDrawerOpen(true);
         }}
@@ -98,7 +170,7 @@ export function App() {
         onSelectTool={handleSelectTool}
       />
 
-      {/* Global Cmd+K Search Palette */}
+      {/* Global Cmd+K Search Palette (All 80 Tools) */}
       <CommandPalette
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
@@ -110,8 +182,17 @@ export function App() {
         isOpen={isAuditLedgerOpen}
         onClose={() => setIsAuditLedgerOpen(false)}
       />
+
+      {/* Gemini AI SOC Copilot Modal */}
+      <AIAssistantModal
+        isOpen={isAIAssistantOpen}
+        onClose={() => setIsAIAssistantOpen(false)}
+        onSelectTool={handleSelectTool}
+        currentTool={selectedTool}
+      />
     </div>
   );
 }
 
 export default App;
+
