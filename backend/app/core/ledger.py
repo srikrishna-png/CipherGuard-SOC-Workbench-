@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from app.models.schemas import AuditLedgerEntry, AuditVerificationResponse
 
-DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "cyber_suite.db"
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    DB_PATH = Path("/tmp") / "cyber_suite.db"
+else:
+    DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "cyber_suite.db"
 
 GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000"
 
